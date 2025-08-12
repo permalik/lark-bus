@@ -3,15 +3,16 @@ package org.example;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Properties;
-import java.util.logging.Logger;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SagaPromptRawConsumer {
 
     private final KafkaConsumer<String, String> consumer;
-    private static final Logger logger = Logger.getLogger(
-        SagaPromptRawConsumer.class.getName()
+    private static final Logger logger = LoggerFactory.getLogger(
+        SagaPromptRawConsumer.class
     );
 
     public SagaPromptRawConsumer(String topic) {
@@ -39,10 +40,7 @@ public class SagaPromptRawConsumer {
         );
         for (ConsumerRecord<String, String> record : records) {
             logger.info(
-                "Consumed: key=" + record.key() + ", value=" + record.value()
-            );
-            System.out.printf(
-                "\nConsumed: key=%s, value=%s, offset=%s\n",
+                "Consumed: key={}, value={}, offset={}",
                 record.key(),
                 record.value(),
                 record.offset()
