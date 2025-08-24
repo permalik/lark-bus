@@ -1,2 +1,2 @@
-# lark-saga-bus-consumer
-application:LLM Client Saga Bus Consumer
+# lark-bus
+application:LLM Client Saga Bus
