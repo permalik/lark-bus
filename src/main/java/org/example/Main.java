@@ -1,9 +1,13 @@
 package org.example;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.*;
+import java.util.Arrays;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.example.consumer.SagaConsumer;
+import org.example.http.AsyncHttpForwarder;
+import org.example.model.Message;
+import org.example.producer.SagaProducer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,53 +16,52 @@ public class Main {
     private static final ObjectMapper mapper = new ObjectMapper();
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
-    public static void main(String[] args) {
-        SagaPromptRawConsumer consumer = new SagaPromptRawConsumer(
-            "saga.prompt.raw"
+    public static void main(String[] args) throws Exception {
+        SagaProducer sagaOutProducer = new SagaProducer("saga.out");
+        AsyncHttpForwarder forwarder = new AsyncHttpForwarder(
+            "http://localhost:9999",
+            sagaOutProducer
+        );
+        SagaConsumer promptConsumer = new SagaConsumer(Arrays.asList("prompt"));
+        SagaConsumer sagaInConsumer = new SagaConsumer(
+            Arrays.asList("saga.in")
         );
 
         Runtime.getRuntime().addShutdownHook(
                 new Thread(() -> {
-                    logger.info("Shutting down..");
-                    consumer.close();
+                    logger.info("Shutting down...");
+                    promptConsumer.close();
+                    sagaInConsumer.close();
+                    sagaOutProducer.close();
                 })
             );
 
-        logger.info("Starting Saga Bus Consumer..");
+        logger.info("Starting async Kafka → HTTP → Kafka service");
 
-        try {
-            while (true) {
-                String rawMsg = consumer.consumeAndProcess();
-                if (rawMsg != null) {
-                    Message message = mapper.readValue(rawMsg, Message.class);
-
-                    logger.info(
-                        "Received Message: " +
-                        mapper.writeValueAsString(message)
-                    );
-
-                    String json = mapper.writeValueAsString(message);
-
-                    HttpClient client = HttpClient.newHttpClient();
-                    HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:9999"))
-                        .header("Content-Type", "application/json")
-                        .POST(HttpRequest.BodyPublishers.ofString(json))
-                        .build();
-                    HttpResponse<String> response = client.send(
-                        request,
-                        HttpResponse.BodyHandlers.ofString()
-                    );
-                    logger.info(
-                        "Forwarded to :9999, Response code: " +
-                        response.statusCode()
-                    );
-                }
-
-                Thread.sleep(100);
+        while (true) {
+            ConsumerRecords<String, String> promptRecords =
+                promptConsumer.consumeAndProcess();
+            for (ConsumerRecord<String, String> record : promptRecords) {
+                Message msg = mapper.readValue(record.value(), Message.class);
+                logger.info(
+                    "[PROMPT] Consumed: {}",
+                    mapper.writeValueAsString(msg)
+                );
+                forwarder.forward(msg);
             }
-        } catch (InterruptedException | IOException e) {
-            logger.error("Interrupted or I/O error: " + e.getMessage());
+
+            ConsumerRecords<String, String> sagaRecords =
+                sagaInConsumer.consumeAndProcess();
+            for (ConsumerRecord<String, String> record : sagaRecords) {
+                Message msg = mapper.readValue(record.value(), Message.class);
+                logger.info(
+                    "[SAGA.IN] Consumed: {}",
+                    mapper.writeValueAsString(msg)
+                );
+                forwarder.forward(msg);
+            }
+
+            Thread.sleep(50);
         }
     }
 }
