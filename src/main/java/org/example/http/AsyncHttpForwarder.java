@@ -1,13 +1,20 @@
 package org.example.http;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.http.*;
 import java.util.concurrent.CompletableFuture;
+
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 import org.example.model.Message;
 import org.example.producer.SagaProducer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 public class AsyncHttpForwarder {
 
@@ -42,6 +49,8 @@ public class AsyncHttpForwarder {
             futureResponse
                 .thenAccept(response -> {
                     try {
+                        String body = response.body();
+                        logger.info("RAWWW: {}", body);
                         Message responseMsg = mapper.readValue(
                             response.body(),
                             Message.class

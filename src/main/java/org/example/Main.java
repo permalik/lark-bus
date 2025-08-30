@@ -1,11 +1,13 @@
 package org.example;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.Arrays;
+import java.util.List;
+
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.example.consumer.SagaConsumer;
 import org.example.http.AsyncHttpForwarder;
+import org.example.http.JavaHttpReceiver;
 import org.example.model.Message;
 import org.example.producer.SagaProducer;
 import org.slf4j.Logger;
@@ -17,14 +19,15 @@ public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
     public static void main(String[] args) throws Exception {
+        JavaHttpReceiver.start(8888);
         SagaProducer sagaOutProducer = new SagaProducer("saga.out");
         AsyncHttpForwarder forwarder = new AsyncHttpForwarder(
             "http://localhost:9999",
             sagaOutProducer
         );
-        SagaConsumer promptConsumer = new SagaConsumer(Arrays.asList("prompt"));
+        SagaConsumer promptConsumer = new SagaConsumer(List.of("prompt"));
         SagaConsumer sagaInConsumer = new SagaConsumer(
-            Arrays.asList("saga.in")
+                List.of("saga.in")
         );
 
         Runtime.getRuntime().addShutdownHook(
